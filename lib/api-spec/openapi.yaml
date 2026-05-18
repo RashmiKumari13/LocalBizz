@@ -1,0 +1,884 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Local Business Support Application API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication and registration
+  - name: shops
+    description: Shop listings and management
+  - name: categories
+    description: Business categories
+  - name: healthcare
+    description: Healthcare services
+  - name: admin
+    description: Admin verification and management
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  # ─── Auth ────────────────────────────────────────────────
+  /auth/register:
+    post:
+      operationId: registerUser
+      tags: [auth]
+      summary: Register a new user (customer or shop owner)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterUserBody"
+      responses:
+        "201":
+          description: User registered, pending admin verification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: loginUser
+      tags: [auth]
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current logged-in user
+      responses:
+        "200":
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── Shops ───────────────────────────────────────────────
+  /shops:
+    get:
+      operationId: listShops
+      tags: [shops]
+      summary: List all verified shops
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: locality
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of shops
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shop"
+
+    post:
+      operationId: createShop
+      tags: [shops]
+      summary: Submit a new shop (shop owner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateShopBody"
+      responses:
+        "201":
+          description: Shop submitted for admin review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shop"
+
+  /shops/my:
+    get:
+      operationId: getMyShops
+      tags: [shops]
+      summary: Get all shops owned by the currently logged-in shop owner
+      responses:
+        "200":
+          description: Owner's shops
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shop"
+        "401":
+          description: Not authenticated
+
+  /shops/{shopId}:
+    patch:
+      operationId: updateShop
+      tags: [shops]
+      summary: Update a shop's details (owner only, resets status to pending)
+      parameters:
+        - name: shopId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateShopBody"
+      responses:
+        "200":
+          description: Shop updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shop"
+        "403":
+          description: Not authorized to edit this shop
+        "404":
+          description: Shop not found
+
+    get:
+      operationId: getShop
+      tags: [shops]
+      summary: Get a single shop by ID
+      parameters:
+        - name: shopId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Shop details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shop"
+        "404":
+          description: Shop not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /shops/stats/summary:
+    get:
+      operationId: getShopsSummary
+      tags: [shops]
+      summary: Get summary stats (counts by category, total shops, etc.)
+      responses:
+        "200":
+          description: Shop summary statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopsSummary"
+
+  /shops/featured:
+    get:
+      operationId: getFeaturedShops
+      tags: [shops]
+      summary: Get featured / recently added shops across all categories
+      responses:
+        "200":
+          description: Featured shops
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shop"
+
+  # ─── Healthcare ──────────────────────────────────────────
+  /healthcare:
+    get:
+      operationId: listHealthcareShops
+      tags: [healthcare]
+      summary: List healthcare providers (hospitals, clinics, pharmacies, etc.)
+      parameters:
+        - name: subcategory
+          in: query
+          schema:
+            type: string
+            enum: [hospital, clinic, pharmacy, diagnostic, optical]
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of healthcare providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shop"
+
+  /healthcare/{shopId}/medicines:
+    get:
+      operationId: getMedicines
+      tags: [healthcare]
+      summary: Get medicines available at a pharmacy
+      parameters:
+        - name: shopId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Medicine list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Medicine"
+
+  # ─── Admin ───────────────────────────────────────────────
+  /admin/pending-users:
+    get:
+      operationId: getPendingUsers
+      tags: [admin]
+      summary: Get all users pending admin verification
+      responses:
+        "200":
+          description: Pending users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  /admin/users/{userId}/verify:
+    post:
+      operationId: verifyUser
+      tags: [admin]
+      summary: Approve or reject a user registration
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyUserBody"
+      responses:
+        "200":
+          description: User verification updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /admin/pending-shops:
+    get:
+      operationId: getPendingShops
+      tags: [admin]
+      summary: Get all shops pending admin verification
+      responses:
+        "200":
+          description: Pending shops
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shop"
+
+  /admin/shops/{shopId}/verify:
+    post:
+      operationId: verifyShop
+      tags: [admin]
+      summary: Approve or reject a shop listing
+      parameters:
+        - name: shopId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyShopBody"
+      responses:
+        "200":
+          description: Shop verification updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shop"
+
+  /admin/shops:
+    post:
+      operationId: adminCreateShop
+      tags: [admin]
+      summary: Admin directly adds a shop (auto-verified)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateShopBody"
+      responses:
+        "201":
+          description: Shop created and verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shop"
+
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Get admin dashboard stats (pending counts, total users, shops, etc.)
+      responses:
+        "200":
+          description: Admin dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+
+  # ─── E-Commerce ─────────────────────────────────────────
+  /shops/{shopId}/products:
+    get:
+      operationId: getShopProducts
+      tags: [shops]
+      summary: Get all products for a specific shop
+      parameters:
+        - name: shopId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+    post:
+      operationId: createShopProduct
+      tags: [shops]
+      summary: Add a new product to a shop (shop owner only)
+      parameters:
+        - name: shopId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductBody"
+      responses:
+        "201":
+          description: Product added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /orders:
+    get:
+      operationId: getMyOrders
+      tags: [orders]
+      summary: Get all orders for the logged-in user
+      responses:
+        "200":
+          description: User's order history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+        "401":
+          description: Not authenticated
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Place a new order (Checkout)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderBody"
+      responses:
+        "201":
+          description: Order placed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /orders/{orderId}/status:
+    patch:
+      operationId: updateOrderStatus
+      tags: [orders]
+      summary: Update the status of an order (shop owner or admin only)
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrderStatusBody"
+      responses:
+        "200":
+          description: Order status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required: [error]
+
+    RegisterUserBody:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+        phone:
+          type: string
+        role:
+          type: string
+          enum: [customer, shop_owner]
+        businessName:
+          type: string
+          description: Required if role is shop_owner
+        locality:
+          type: string
+      required: [name, email, password, role]
+
+    LoginBody:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required: [email, password]
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required: [token, user]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [customer, shop_owner, admin]
+        status:
+          type: string
+          enum: [pending, verified, rejected]
+        businessName:
+          type: string
+          nullable: true
+        locality:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, email, role, status, createdAt]
+
+    Shop:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        category:
+          type: string
+          enum: [grocery, fashion, healthcare, services, restaurants]
+        subcategory:
+          type: string
+          nullable: true
+          description: For healthcare shops - hospital, clinic, pharmacy, diagnostic, optical
+        locality:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        openingTime:
+          type: string
+          nullable: true
+        closingTime:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          nullable: true
+        longitude:
+          type: number
+          nullable: true
+        status:
+          type: string
+          enum: [pending, verified, rejected]
+        ownerId:
+          type: integer
+          nullable: true
+        rating:
+          type: number
+          nullable: true
+        reviewCount:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, category, locality, status, createdAt]
+
+    CreateShopBody:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+          enum: [grocery, fashion, healthcare, services, restaurants]
+        subcategory:
+          type: string
+          nullable: true
+        locality:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        openingTime:
+          type: string
+          nullable: true
+        closingTime:
+          type: string
+          nullable: true
+      required: [name, category, locality]
+
+    UpdateShopBody:
+      type: object
+      properties:
+        name:
+          type: string
+        locality:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        subcategory:
+          type: string
+          nullable: true
+        openingTime:
+          type: string
+          nullable: true
+        closingTime:
+          type: string
+          nullable: true
+
+    Medicine:
+      type: object
+      properties:
+        id:
+          type: integer
+        shopId:
+          type: integer
+        name:
+          type: string
+        available:
+          type: boolean
+        price:
+          type: number
+          nullable: true
+      required: [id, shopId, name, available]
+
+    ShopsSummary:
+      type: object
+      properties:
+        total:
+          type: integer
+        byCategory:
+          type: object
+          additionalProperties:
+            type: integer
+        localities:
+          type: array
+          items:
+            type: string
+      required: [total, byCategory, localities]
+
+    VerifyUserBody:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [approve, reject]
+        reason:
+          type: string
+          nullable: true
+      required: [action]
+
+    VerifyShopBody:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [approve, reject]
+        reason:
+          type: string
+          nullable: true
+      required: [action]
+
+    AdminStats:
+      type: object
+      properties:
+        pendingUsers:
+          type: integer
+        pendingShops:
+          type: integer
+        totalUsers:
+          type: integer
+        totalShops:
+          type: integer
+        totalCustomers:
+          type: integer
+        totalShopOwners:
+          type: integer
+        verifiedShops:
+          type: integer
+      required: [pendingUsers, pendingShops, totalUsers, totalShops, totalCustomers, totalShopOwners, verifiedShops]
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        shopId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        price:
+          type: number
+        imageUrl:
+          type: string
+          nullable: true
+        available:
+          type: boolean
+        category:
+          type: string
+          nullable: true
+      required: [id, shopId, name, price, available]
+
+    CreateProductBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        price:
+          type: number
+        imageUrl:
+          type: string
+          nullable: true
+        available:
+          type: boolean
+        category:
+          type: string
+          nullable: true
+      required: [name, price]
+
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        orderId:
+          type: integer
+        productId:
+          type: integer
+        quantity:
+          type: integer
+        priceAtTime:
+          type: number
+      required: [id, orderId, productId, quantity, priceAtTime]
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        shopId:
+          type: integer
+        totalAmount:
+          type: number
+        status:
+          type: string
+          enum: [pending, confirmed, delivered, cancelled]
+        deliveryAddress:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItem"
+      required: [id, userId, shopId, totalAmount, status, deliveryAddress, createdAt]
+
+    CreateOrderBody:
+      type: object
+      properties:
+        shopId:
+          type: integer
+        deliveryAddress:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              productId:
+                type: integer
+              quantity:
+                type: integer
+            required: [productId, quantity]
+      required: [shopId, deliveryAddress, items]
+
+    UpdateOrderStatusBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, confirmed, delivered, cancelled]
+      required: [status]

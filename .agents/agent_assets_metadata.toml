@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "ArenRbuMFyFBAxsqEvEQf"
+uri = "file://artifacts/local-biz/public/hero-market.png"
+type = "image"
+title = "indian local market bazaar"
